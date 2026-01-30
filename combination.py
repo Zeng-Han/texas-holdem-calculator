@@ -57,21 +57,46 @@ def compare_strength(card_a, card_b):
         return 1
     elif card_a["level"] < card_b["level"]:
         return -1
-    else:  # 等级相同，比高牌
-        # 特殊处理：2345A比23456小
-        if card_a['level'] == 5 and card_b['level'] == 5:
-            if card_a['cards'][4][0] == 'A' and card_b['cards'][4][0] == '6':
-                return -1
-            elif card_a['cards'][4][0] == '6' and card_b['cards'][4][0] == 'A':
-                return 1
-        for i in range(4):
-            if card_a['cards'][4 - i][0] == card_b['cards'][4 - i][0]:
-                continue  # 相同高牌，比下一张
-            elif NUMBERS_2_STRENGTHS[card_a['cards'][4 - i][0]] > NUMBERS_2_STRENGTHS[card_b['cards'][4 - i][0]]:
-                return 1  # a高牌大
-            else:
-                return -1
-        return 0  # 完全相等
+    else:
+        # 等级相同，需要提取比较特征（Comparison Key）
+        key_a = get_comparison_key(card_a)
+        key_b = get_comparison_key(card_b)
+        
+        if key_a > key_b:
+            return 1
+        elif key_a < key_b:
+            return -1
+        else:
+            return 0
+
+
+def get_comparison_key(card_info):
+    # 根据牌型等级生成可直接比较的元组
+    level = card_info["level"]
+    cards = card_info["cards"]
+    strengths = [NUMBERS_2_STRENGTHS[c[0]] for c in cards] # 这里的 cards 已按 strength 从小到大排序
+    
+    # 顺子和同花顺的特殊处理：A2345 是最小的顺子（5-high）
+    if level == 5 or level == 9:
+        if strengths[4] == 14 and strengths[0] == 2:
+            return (5,)
+        return (strengths[4],)  # 顺子的最高牌
+        
+    # 其他牌型：统计频率并按 (频率, 点数) 降序排序
+    # 这种方式适用于：四条、葫芦、同花、三条、两对、一对、高牌
+    counts = defaultdict(int)
+    for s in strengths:
+        counts[s] += 1
+    
+    # 排序规则：先看出现的次数（如三带二中的3），再看点数大小
+    # items 格式：[(频率, 点数), ...]
+    items = [(count, strength) for strength, count in counts.items()]
+    # 按频率降序，频率相同时按点数降序
+    items.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    
+    # 返回纯点数组成的元组用于比较
+    return tuple(item[1] for item in items)
+
 
 def is_straight_flush(cards):
     if is_flush(cards) and is_straight(cards):
